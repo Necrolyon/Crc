@@ -1,0 +1,95 @@
+#include <stdio.h>
+#include <stdint.h>
+#include <string.h>
+
+#define POLINOMIO 0xEDB88320
+
+uint32_t calcular_crc32(const unsigned char *dados, size_t tamanho)
+{
+    uint32_t crc = 0xFFFFFFFF;
+
+    for (size_t i = 0; i < tamanho; i++)
+    {
+        crc ^= dados[i];
+
+        for (int j = 0; j < 8; j++)
+        {
+            if (crc & 1)
+                crc = (crc >> 1) ^ POLINOMIO;
+            else
+                crc >>= 1;
+        }
+    }
+
+    return crc ^ 0xFFFFFFFF;
+}
+
+int main()
+{
+    char mensagem[256];
+
+    printf("Digite a mensagem: ");
+    fgets(mensagem, sizeof(mensagem), stdin);
+
+    mensagem[strcspn(mensagem, "\n")] = '\0';
+
+    size_t tamanho = strlen(mensagem);
+
+    uint32_t crc = calcular_crc32(
+        (unsigned char *)mensagem,
+        tamanho
+    );
+
+    printf("\n=================================\n");
+    printf("        PROCESSO CRC-32\n");
+    printf("=================================\n");
+
+    printf("Mensagem original: %s\n", mensagem);
+    printf("CRC-32: %08X\n", crc);
+
+    unsigned char pacote[260];
+
+    memcpy(pacote, mensagem, tamanho);
+
+    pacote[tamanho]     = (crc >> 24) & 0xFF;
+    pacote[tamanho + 1] = (crc >> 16) & 0xFF;
+    pacote[tamanho + 2] = (crc >> 8) & 0xFF;
+    pacote[tamanho + 3] = crc & 0xFF;
+
+    printf("\nPacote transmitido:\n");
+
+    for (size_t i = 0; i < tamanho + 4; i++)
+    {
+        printf("%02X ", pacote[i]);
+    }
+
+    printf("\n");
+
+
+    uint32_t crc_recebido =
+        ((uint32_t)pacote[tamanho] << 24) |
+        ((uint32_t)pacote[tamanho + 1] << 16) |
+        ((uint32_t)pacote[tamanho + 2] << 8) |
+        ((uint32_t)pacote[tamanho + 3]);
+
+    uint32_t crc_calculado = calcular_crc32(
+        pacote,
+        tamanho
+    );
+
+    printf("\nCRC recebido:   %08X\n", crc_recebido);
+    printf("CRC calculado:  %08X\n", crc_calculado);
+
+    if (crc_recebido == crc_calculado)
+    {
+        printf("\nResultado: DADOS CORRETOS\n");
+        printf("Nenhum erro foi detectado.\n");
+    }
+    else
+    {
+        printf("\nResultado: ERRO DETECTADO\n");
+        printf("Os dados foram alterados durante a transmissao.\n");
+    }
+
+    return 0;
+}
